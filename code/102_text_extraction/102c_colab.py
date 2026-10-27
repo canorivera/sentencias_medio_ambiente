@@ -19,7 +19,7 @@ sesión para no gastar unidades.
 Uso (desde la raíz del repositorio, en PowerShell):
     code/.venv/Scripts/python code/102_text_extraction/102c_colab.py prueba
     code/.venv/Scripts/python code/102_text_extraction/102c_colab.py benchmark --gpu L4 --configs paddle_144 paddle_200_ori paddle_300_ori olmocr_200 tesseract_300 --piloto 40
-    code/.venv/Scripts/python code/102_text_extraction/102c_colab.py lote --gpu L4 --workers colab1 colab2 --perfil estandar
+    code/.venv/Scripts/python code/102_text_extraction/102c_colab.py lote --gpu L4 --workers colab1 colab2 --procesos 4 --perfil estandar
     code/.venv/Scripts/python code/102_text_extraction/102c_colab.py parar --nombre colab1
 """
 

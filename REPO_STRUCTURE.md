@@ -40,12 +40,19 @@ code/.venv/Scripts/python code/101_downloading/101_download_rulings.py --limit 2
 
 ### `code/102_text_extraction/`
 
-Extrae el texto de cada PDF. Por página: usa el texto embebido si el PDF salió de Word y el texto es visible y no está bajo un testado; si no, hace OCR con PaddleOCR-VL-1.6 (layout en Paddle, reconocimiento en un servidor de modelo). Los PDF dañados se reparan o se rescatan sus imágenes. Las reglas están en `ocr.py`.
+Extrae el texto de cada PDF. Por página: usa el texto embebido si el PDF salió de Word y el texto es visible y no está bajo un testado; si no, hace OCR con PaddleOCR-VL-1.6 (layout en Paddle, reconocimiento en un servidor de modelo: vLLM en Colab, llama.cpp en la laptop). Los PDF dañados se reparan o se rescatan sus imágenes. Las reglas están en `ocr.py`. El benchmark y el costo están resumidos en el [README](README.md).
 
-- `ocr.py`: funciones comunes (apertura y reparación de PDF, reglas del texto embebido, OCR por tandas, perfiles `estandar` y `alta`).
+Perfiles (`ocr.PROFILES`):
+
+| Perfil | Uso | Resolución | Corrección de giro | Texto embebido |
+|---|---|---|---|---|
+| `estandar` | todo el corpus | 200 ppp | sí | sí |
+| `alta` | candidatas de `103_classify.py` | 300 ppp | sí | sí |
+
+- `ocr.py`: funciones comunes (apertura y reparación de PDF, reglas del texto embebido, OCR por tandas, limpieza de bucles de repetición, perfiles). Conserva encabezados, pies y notas al margen en el Markdown. Tamaño de tanda en `OCR_CHUNK_PAGES` (por omisión 8 páginas).
 - `102a_benchmark_sample.py`: elige 30 páginas de prueba por estratos (digital, escaneo bueno y malo, girada, tabla, vida silvestre) y deja sus imágenes en `DATA_DIR/benchmark/paginas/`. Las transcripciones de referencia van en `DATA_DIR/benchmark/referencias/` (reglas en su `LEEME.md`).
 - `102b_extract_text.py`: extrae el texto del corpus y escribe `DATA_DIR/text/<perfil>/<año>/<expediente>/<archivo>.md` y `.json`. En la laptop usa llama.cpp (lo inicia solo). Omite lo ya hecho y anota cada documento en `DATA_DIR/logs/ocr_<perfil>.csv`.
-- `102c_colab.py`: corre el benchmark o la extracción en máquinas de Colab con GPU, manejadas desde la laptop con el CLI de Colab (como en el proyecto JANN). La máquina baja los PDF de PROFEPA y devuelve el texto en zips. Correr desde PowerShell.
+- `102c_colab.py`: corre el benchmark o la extracción en máquinas de Colab con GPU, manejadas desde la laptop con el CLI de Colab (como en el proyecto JANN). La máquina baja los PDF de PROFEPA y devuelve el texto en zips. Cada máquina corre `--procesos` copias de `102b` a la vez (por omisión 4: con una sola, el servidor queda ocioso entre tandas). Si una sesión se pierde, volver a correr `lote` toma solo lo pendiente. Correr desde PowerShell.
 - `102d_benchmark_run.py`: corre cada opción de OCR sobre las páginas de prueba.
 - `202_benchmark_scores.py`: compara cada opción contra las referencias (errores de carácter, palabras y términos del libro de códigos encontrados) y escribe `DATA_DIR/benchmark/resultados_*.csv`.
 - `requirements_colab.txt`, `requirements_colab_vllm.txt`: entornos de la máquina de Colab (Paddle y vLLM van en entornos separados).
@@ -54,8 +61,9 @@ Extrae el texto de cada PDF. Por página: usa el texto embebido si el PDF salió
 code/.venv/Scripts/python code/102_text_extraction/102b_extract_text.py --perfil estandar --limit 5     # prueba en la laptop
 code/.venv/Scripts/python code/102_text_extraction/102c_colab.py benchmark --gpu L4 --configs paddle_144 paddle_200_ori paddle_300_ori olmocr_200 tesseract_300 --piloto 40
 code/.venv/Scripts/python code/102_text_extraction/202_benchmark_scores.py
-code/.venv/Scripts/python code/102_text_extraction/102c_colab.py lote --gpu L4 --workers colab1 colab2 --perfil estandar
-code/.venv/Scripts/python code/102_text_extraction/102c_colab.py lote --gpu L4 --workers colab1 --perfil alta --lista <DATA_DIR>/classification/candidatas_estandar.csv
+code/.venv/Scripts/python code/102_text_extraction/102c_colab.py lote --gpu L4 --workers colab1 colab2 --procesos 4 --perfil estandar
+code/.venv/Scripts/python code/102_text_extraction/102c_colab.py lote --gpu L4 --workers colab1 --procesos 4 --perfil alta --lista <DATA_DIR>/classification/candidatas_estandar.csv
+code/.venv/Scripts/python code/102_text_extraction/102c_colab.py parar --nombre colab1                     # apagar una sesión
 ```
 
 ### `code/103_classification/`
