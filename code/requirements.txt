@@ -1,0 +1,11 @@
+--extra-index-url https://www.paddlepaddle.org.cn/packages/stable/cu129/
+paddlepaddle-gpu==3.4.0
+paddleocr[doc-parser]==3.7.0
+# pandas 3.x: Smart App Control de Windows bloquea sus DLL (versión reciente sin firma conocida)
+pandas==2.2.3
+pymupdf
+python-dotenv
+pyyaml
+rapidfuzz
+regex
+requests

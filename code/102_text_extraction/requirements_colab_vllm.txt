@@ -1,0 +1,11 @@
+# Entorno aparte para los servidores de modelos en Colab (vLLM trae su propio torch y CUDA,
+# que chocan con los de Paddle si van en el mismo entorno). Versiones de paddlex
+# "genai-vllm-server" (paddleocr 3.7.0). flash-attn precompilado: compilarlo tarda más de una hora.
+vllm==0.10.2
+torch==2.8.0
+transformers<5.0.0
+einops
+uvloop
+xformers
+https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3%2Bcu12torch2.8cxx11abiTRUE-cp312-cp312-linux_x86_64.whl
+paddleocr[doc-parser]==3.7.0

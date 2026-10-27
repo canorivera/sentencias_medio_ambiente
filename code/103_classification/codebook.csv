@@ -1,0 +1,48 @@
+id,grupo,termino,patron,peso,errores,contexto,excluir,fuente,justificacion
+L01,marco_legal,Ley General de Vida Silvestre,ley general de vida silvestre,fuerte,2,,,lista original,Ley principal en la materia.
+L02,marco_legal,LGVS,\bl\.? ?g\.? ?v\.? ?s\b\.?,fuerte,0,,,lista original,Siglas de la ley. Poco frecuentes: 9 de 1594 resoluciones con texto las usan.
+L03,marco_legal,Reglamento de la Ley General de Vida Silvestre,reglamento de la ley general de vida silvestre,fuerte,2,,,variante,Nombre completo del reglamento.
+L04,marco_legal,RLGVS,\br\.? ?l\.? ?g\.? ?v\.? ?s\b\.?,fuerte,0,,,lista original,Siglas del reglamento.
+L05,marco_legal,NOM-059-SEMARNAT,nom[- ]?059,fuerte,0,,,agregado (184),Norma de especies en riesgo.
+L06,marco_legal,CITES,\bcites\b|convencion sobre el comercio internacional de especies amenazadas,fuerte,0,,,agregado (59),Convención sobre comercio de especies amenazadas.
+L07,marco_legal,Artículo 420 del Código Penal Federal,\b420\b(?! ?(?:bis|ter|quater)),medio,0,codigo penal|delito|biodiversidad,,agregado (158),"Artículo 420 (fauna). No cuenta 420 Bis/Ter/Quater (humedales, transgénicos, impacto). El número solo cuenta cerca de 'código penal' o 'delito' o 'biodiversidad'."
+L08,marco_legal,Delitos contra la biodiversidad,delitos? contra la biodiversidad,fuerte,1,,,agregado,Título del Código Penal Federal sobre fauna y flora.
+M01,figuras_manejo,Unidad de Manejo para la Conservación de Vida Silvestre,unidad(?:es)? de manejo para la conservacion de (?:la )?vida silvestre,fuerte,2,,,lista original,El nombre legal incluye 'de la'. Se aceptan ambas formas y el plural.
+M02,figuras_manejo,UMA (de manejo),\bu\.? ?m\.? ?a\.? ?s?\b,medio,0,manejo|conservacion|silvestre|registro|plan de manejo|aprovechamiento,unidad(?:es)? de medida|valor diario|veces el valor|actualizacion,lista original,Desde 2016 las multas se expresan en UMA (Unidad de Medida y Actualización). Solo cuenta con contexto de manejo y sin contexto de multas.
+M03,figuras_manejo,Predio o Instalación que Maneja Vida Silvestre,predios? (?:o instalacion(?:es)? )?que manejan? vida silvestre,fuerte,2,,,lista original,Nombre legal de PIMVS.
+M04,figuras_manejo,PIMVS,\bp\.? ?i\.? ?m\.? ?v\.? ?s\b\.?,fuerte,0,,,lista original,Siglas.
+M05,figuras_manejo,Zoológico,zoologicos?,fuerte,1,,,lista original,
+M06,figuras_manejo,Acuario,acuarios?,medio,0,,,lista original,Puede aparecer en domicilios o nombres comerciales.
+M07,figuras_manejo,Delfinario,delfinarios?,fuerte,1,,,agregado,
+M08,figuras_manejo,Circo,\bcircos?\b,medio,0,animal|ejemplar|fauna|silvestre|espectaculo,,agregado (12),La LGVS prohíbe ejemplares en circos. Solo cuenta con contexto de animales.
+M09,figuras_manejo,Colección privada,colecci(?:on|ones) privadas?,medio,1,,,agregado,
+M10,figuras_manejo,Criadero,criaderos?,medio,1,,,agregado,
+M11,figuras_manejo,CIVS (siglas),\bc\.? ?i\.? ?v\.? ?s\b\.?,fuerte,0,,,agregado,Centros donde se depositan ejemplares asegurados. Siglas sin tolerancia a errores.
+M13,figuras_manejo,Centro para la Conservación e Investigación de la Vida Silvestre,centros? para la conservacion e investigacion de (?:la )?vida silvestre,fuerte,2,,,agregado,Nombre completo de los CIVS.
+M12,figuras_manejo,Plan de manejo,planes? de manejo,debil,1,,,agregado,También existe en materia forestal.
+F01,fauna,Vida silvestre,vida silvestre,fuerte,1,,"forestales,? de (?:la )?vida silvestre,? quelonios|aprovechamiento sustentable de la vida silvestre y su habitat en zonas que no sean",variante,"Término general de la ley. 198 de 1594 resoluciones con texto. No cuenta dentro de los párrafos de competencia que repiten casi todas las resoluciones ('recursos forestales, de vida silvestre, quelonios...')."
+F02,fauna,Fauna silvestre,fauna silvestre,fuerte,1,,,lista original,222 de 1594.
+F03,fauna,Flora silvestre,flora silvestre,medio,1,,,agregado (58),
+F04,fauna,Ejemplares de vida silvestre,ejemplar(?:es)? de (?:la )?(?:vida|fauna|flora) silvestre,fuerte,2,,,lista original,
+F05,fauna,Ejemplares (con contexto),\bejemplar(?:es)?\b,debil,0,fauna|especie|silvestre|\baves?\b|mamifer|reptil|anfibi|animal|vivos?\b,ejemplar(?:es)? de (?:la|esta|dicha) (?:presente )?(?:resolucion|acuerdo|oficio)|en (?:dos|tres|un) ejemplar|forestal|arbol|madera|arbolado,lista original,Muy frecuente (258 de 1594) y también se usa para árboles y copias de documentos. Solo cuenta junto a términos de fauna.
+F06,fauna,Especie en riesgo,especies? (?:en riesgo|amenazadas?|en peligro de extincion|sujetas? a proteccion especial|probablemente extintas?),fuerte,1,,,agregado (96),Categorías de la NOM-059.
+F07,fauna,Especie endémica,especies? endemicas?,debil,1,,,agregado,
+F08,fauna,Especies exóticas o invasoras,especies? (?:exoticas?|invasoras?),medio,1,,,agregado,
+F09,fauna,Mascota,mascotas?,debil,0,,,agregado (26),
+F10,fauna,Especies emblemáticas,\b(?:totoaba|vaquita marina|tortugas? marinas?|psitacid\w*|guacamayas?|pericos?|loros?|jaguar(?:es)?|ocelotes?|primates?|monos? arana|cocodril\w*|caiman(?:es)?|venados?|borrego cimarron|tiburon(?:es)?|ajolotes?|aguila real|halcon(?:es)?)\b,medio,0,,,agregado,Especies frecuentes en tráfico y protección. Cuenta una vez aunque aparezcan varias.
+A01,acciones,Legal procedencia,legal procedencia,medio,1,,,agregado (268),También en materia forestal (madera).
+A02,acciones,Aseguramiento precautorio,aseguramiento precautorio,debil,1,,,agregado (82),Medida común a varias materias.
+A03,acciones,Decomiso,decomis[oa],debil,0,,,agregado,
+A04,acciones,Marcaje,marcaje|microchip|anillos? de identificacion|\bchip\b,medio,0,,,agregado (51),Sistemas de marca de ejemplares. Sin tolerancia a errores: con un error 'chip' coincide con 'Chih' (Chihuahua).
+A05,acciones,Liberación de ejemplares,liberaci(?:on|ones) de (?:los )?ejemplar,medio,1,,,agregado,
+A06,acciones,Depositario,depositari[oa],debil,0,ejemplar|fauna|silvestre|animal,,agregado,Solo cuenta junto a ejemplares.
+A07,acciones,Tráfico o comercio ilegal,(?:trafico|comercio) ilegal|trafico de (?:especies|fauna|ejemplares),medio,1,,,agregado (28),
+A08,acciones,Aprovechamiento extractivo,aprovechamiento (?:no )?extractivo,medio,1,,,agregado,Término de la LGVS.
+A09,acciones,Posesión de ejemplares,posesion de (?:los )?ejemplar,medio,1,,,agregado,
+B01,bienestar,Maltrato animal,maltrato animal|maltrato a (?:los )?(?:animales|ejemplares),fuerte,1,,,lista original,
+B02,bienestar,Maltrato,maltrat[oa]s?,medio,0,,,lista original,Puede referirse a otras cosas. Peso medio.
+B03,bienestar,Trato digno y respetuoso,trato digno y respetuoso,fuerte,2,,,agregado,Término de la LGVS sobre bienestar animal.
+B04,bienestar,Crueldad,crueldad,medio,0,animal|ejemplar|fauna,,agregado,
+P01,procedimiento,Denuncia popular,denuncia popular,debil,1,,,lista original,Vía de inicio común a todas las materias.
+P02,procedimiento,Denuncia,denuncias?,debil,0,,,lista original,Muy general. Solo suma con otros términos.
+P03,procedimiento,Dirección de inspección de vida silvestre,inspeccion (?:y vigilancia )?(?:de|en materia de) vida silvestre,fuerte,2,,,agregado,Área de PROFEPA a cargo de la materia.
