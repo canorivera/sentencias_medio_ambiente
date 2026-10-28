@@ -12,8 +12,8 @@ Todo viaja con el CLI en archivos .zip de menos de 30 MB (el Drive no se monta):
 La máquina de Colab baja cada PDF directo de PROFEPA (URL de logs/download_log.csv) y lo
 borra al terminar: no se suben los 49 GB.
 
-En la máquina hay dos entornos: el de Colab con Paddle (layout, orientación, cliente) y
-/content/vllm_env con vLLM (servidor del modelo). Al terminar, o si algo falla, se apaga la
+En la máquina hay dos entornos: /content/paddle_env con Paddle (layout, orientación, cliente)
+y /content/vllm_env con vLLM (servidor del modelo). Al terminar, o si algo falla, se apaga la
 sesión para no gastar unidades.
 
 Uso (desde la raíz del repositorio, en PowerShell):
@@ -72,9 +72,13 @@ def run(cmd):
     print("$", cmd, flush=True)
     subprocess.run(cmd, shell=True, check=True)
 run("apt-get -qq update > /dev/null && apt-get -qq install -y tesseract-ocr tesseract-ocr-spa > /dev/null")
-run(sys.executable + " -m pip install -q -r {repo}/code/102_text_extraction/requirements_colab.txt")
-run("pip install -q uv && uv venv -q --python 3.12 /content/vllm_env")
-run("uv pip install -q --python /content/vllm_env/bin/python -r {repo}/code/102_text_extraction/requirements_colab_vllm.txt")
+# Dos entornos con Python 3.12 (Colab trae 3.13, sin ruedas de Paddle recientes, y un torch
+# propio cuyas bibliotecas de CUDA chocan con las de Paddle)
+run("pip install -q uv")
+run("uv venv -q --python 3.12 /content/paddle_env && uv pip install -q --python /content/paddle_env/bin/python "
+    "--index-strategy unsafe-best-match -r {repo}/code/102_text_extraction/requirements_colab.txt")
+run("uv venv -q --python 3.12 /content/vllm_env && uv pip install -q --python /content/vllm_env/bin/python "
+    "-r {repo}/code/102_text_extraction/requirements_colab_vllm.txt")
 print("listo:", subprocess.run(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
                                 capture_output=True, text=True).stdout.strip() or "sin GPU")
 """
@@ -185,9 +189,30 @@ def sesion(nombre, gpu, log, extras):
         else:
             raise RuntimeError(f"falló la subida de la parte {k}")
         local.unlink()
-    codigo = PREPARAR.format(work=WORK_VM, repo=REPO_VM)
-    if cli("exec", "-s", nombre, "--timeout", "3000", entrada=codigo, log=log, timeout=3300)[0] != 0:
-        raise RuntimeError(f"falló la preparación de {nombre}")
+    # La instalación tarda ~15 minutos: corre en segundo plano en la máquina y aquí solo se
+    # consulta si terminó (una orden larga del CLI pierde la conexión a veces)
+    preparar = PREPARAR.format(work=WORK_VM, repo=REPO_VM)
+    lanzador = "\n".join([
+        f"open('/content/preparar.py', 'w').write({preparar!r})",
+        "import subprocess",
+        "subprocess.Popen(['bash', '-c', 'python3 /content/preparar.py > /content/preparar.log 2>&1; "
+        "echo $? > /content/PREPARADO'], start_new_session=True)",
+        "print('preparando')",
+    ])
+    if cli("exec", "-s", nombre, "--timeout", "120", entrada=lanzador, log=log, timeout=300)[0] != 0:
+        raise RuntimeError(f"no se pudo lanzar la preparación de {nombre}")
+    for _ in range(80):   # hasta 40 minutos
+        time.sleep(30)
+        codigo, salida = cli("ls", "-s", nombre, "/content", timeout=120)
+        if codigo == 0 and "PREPARADO" in salida.split():
+            local = LOGS / f"{nombre}.preparar.log"
+            cli("download", "-s", nombre, "/content/preparar.log", str(local))
+            cli("download", "-s", nombre, "/content/PREPARADO", str(LOGS / f"{nombre}.preparado"))
+            if (LOGS / f"{nombre}.preparado").read_text().strip() != "0":
+                raise RuntimeError(f"falló la preparación de {nombre} (ver {local.name})")
+            escribir(log, f"{nombre}: " + local.read_text(encoding="utf-8", errors="replace").strip().splitlines()[-1])
+            return
+    raise RuntimeError(f"la preparación de {nombre} no terminó a tiempo")
 
 
 # --- vuelta ----------------------------------------------------------------------------------
@@ -329,16 +354,37 @@ def subir_partes(nombre, filas, partes):
     return extras
 
 
-def vllm_cmd():
-    """Arranca el servidor de PaddleOCR-VL y espera a que responda."""
-    return ("/content/vllm_env/bin/paddleocr genai_server --model_name PaddleOCR-VL-1.6-0.9B "
-            "--backend vllm --host 127.0.0.1 --port 8118 > /content/work/vllm.log 2>&1 & "
+def vllm_cmd(gpu="", memoria=None):
+    """Arranca el servidor de PaddleOCR-VL y espera a que responda. Ajustes de vLLM en un yaml:
+    la T4 no maneja bfloat16 (el formato del modelo) y usa float16; `memoria` es la fracción de
+    la GPU que reserva vLLM (por omisión 0.5, aunque su caché casi no se usa)."""
+    ajustes = []
+    if gpu == "T4":
+        ajustes.append("dtype: half")
+    if memoria:
+        ajustes.append(f"gpu-memory-utilization: {memoria}")
+        # con menos memoria, vLLM no alcanza a reservar para tandas de 131,072 tokens (el valor
+        # de PaddleOCR); los bloques de texto son cortos y 32,768 sobra
+        ajustes.append("max-num-batched-tokens: 32768")
+    config, extra = "", ""
+    if ajustes:
+        config = "printf '" + "\n".join(ajustes) + f"\n' > {WORK_VM}/vllm.yaml && "
+        extra = f" --backend_config {WORK_VM}/vllm.yaml"
+    # XFORMERS_IGNORE_FLASH_VERSION_CHECK: en la T4 vLLM usa xformers, que no acepta la versión
+    # de flash-attn instalada (2.8.3, la única precompilada para torch 2.8)
+    return (f"{config}XFORMERS_IGNORE_FLASH_VERSION_CHECK=1 /content/vllm_env/bin/paddleocr genai_server "
+            f"--model_name PaddleOCR-VL-1.6-0.9B --backend vllm --host 127.0.0.1 --port 8118{extra} "
+            "> /content/work/vllm.log 2>&1 & "
             "for i in $(seq 1 360); do curl -sf http://127.0.0.1:8118/v1/models > /dev/null && break; sleep 5; done")
+
+
+# Números de procesos que prueba la acción "velocidad" en cada GPU
+PROCESOS_PRUEBA = {"L4": [4, 8, 12], "T4": [2, 4, 8], "A100": [4, 8, 16], "G4": [4, 8, 16]}
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("accion", choices=["prueba", "benchmark", "lote", "parar"])
+    ap.add_argument("accion", choices=["prueba", "benchmark", "velocidad", "lote", "parar"])
     ap.add_argument("--gpu", nargs="*", default=["L4"], help="una GPU para todos, o una por trabajador")
     ap.add_argument("--configs", nargs="*", default=[])
     ap.add_argument("--piloto", type=int, default=0, help="benchmark: documentos reales para medir velocidad")
@@ -346,6 +392,9 @@ def main():
     ap.add_argument("--perfil", default="estandar")
     ap.add_argument("--lista", help="lote: CSV con columna pdf (p. ej. candidatas para el perfil alta)")
     ap.add_argument("--procesos", type=int, default=4, help="procesos de 102b por máquina")
+    ap.add_argument("--minutos", type=float, default=15, help="velocidad: minutos por cada número de procesos")
+    ap.add_argument("--memoria-vllm", type=float, help="fracción de la GPU para vLLM (por omisión 0.5)")
+    ap.add_argument("--lista-procesos", nargs="*", type=int, help="velocidad: números de procesos a probar")
     ap.add_argument("--nombre")
     a = ap.parse_args()
     LOGS.mkdir(parents=True, exist_ok=True)
@@ -364,15 +413,34 @@ def main():
         bench = DATA_DIR / "benchmark"
         extras = [(bench / "paginas.csv", "work/data/benchmark/paginas.csv")]
         extras += [(f, f"work/data/benchmark/paginas/{f.name}") for f in sorted((bench / "paginas").glob("*.pdf"))]
-        pasos = [f"python -u code/102_text_extraction/102d_benchmark_run.py --configs {' '.join(a.configs)}",
+        pasos = [f"/content/paddle_env/bin/python -u code/102_text_extraction/102d_benchmark_run.py --configs {' '.join(a.configs)}",
                  f"cd {DATA_VM} && zip -qr {WORK_VM}/ship/benchmark_salidas.zip benchmark/salidas && cd {REPO_VM}"]
         if a.piloto:
             # documentos al azar (semilla fija) para medir la velocidad real con el perfil estandar
             filas = pendientes("estandar")
             random.Random(20261027).shuffle(filas)
             extras += subir_partes("piloto", filas[: a.piloto], a.procesos)
-            pasos += [vllm_cmd(), extract_cmd("estandar", "piloto", a.procesos)]
+            pasos += [vllm_cmd(a.gpu[0]), extract_cmd("estandar", "piloto", a.procesos)]
         trabajo(f"bench_{a.gpu[0]}", a.gpu[0], " ; ".join(pasos), extras)
+
+    elif a.accion == "velocidad":
+        # una sesión por GPU, en paralelo; todas con la misma lista de PDF (semilla fija)
+        filas = pendientes("estandar")
+        random.Random(20261028).shuffle(filas)
+        lista = escribir_pedazo("velocidad", filas[:500])
+        hilos = []
+        for gpu in a.gpu:
+            procesos = " ".join(str(n) for n in (a.lista_procesos or PROCESOS_PRUEBA[gpu]))
+            script = (vllm_cmd(gpu, a.memoria_vllm) + " ; OCR_SERVER_PARALLEL=" + str(PETICIONES) + " /content/paddle_env/bin/python -u "
+                      f"code/102_text_extraction/102e_speed_test.py --lista {WORK_VM}/inputs/velocidad.csv "
+                      f"--procesos {procesos} --minutos {a.minutos} --gpu {gpu} --envio {WORK_VM}/ship")
+            nombre = f"vel_{gpu}_{datetime.now():%H%M}"   # nombre único: una sesión vieja no apaga a la nueva
+            h = threading.Thread(target=trabajo, args=(nombre, gpu, script, [(lista, "work/inputs/velocidad.csv")]))
+            h.start()
+            hilos.append(h)
+        for h in hilos:
+            h.join()
+        print("Resultados en", DATA_DIR / "benchmark" / "velocidad")
 
     elif a.accion == "lote":
         filas = pendientes(a.perfil, a.lista)
@@ -381,7 +449,7 @@ def main():
         hilos = []
         for k, (w, gpu) in enumerate(zip(a.workers, gpus)):
             extras = subir_partes(w, filas[k::len(a.workers)], a.procesos)
-            script = vllm_cmd() + " ; " + extract_cmd(a.perfil, w, a.procesos)
+            script = vllm_cmd(gpu) + " ; " + extract_cmd(a.perfil, w, a.procesos)
             h = threading.Thread(target=trabajo, args=(w, gpu, script, extras))
             h.start()
             hilos.append(h)

@@ -42,6 +42,16 @@ Medido en Colab con una GPU L4 y 4 procesos por máquina: 0.57 páginas por segu
 
 La segunda pasada (300 ppp sobre ~27% de resoluciones candidatas) suma ~25 unidades (~$2.50 USD). En la laptop (RTX 5070) el mismo trabajo no cuesta, pero tarda ~3.3 días seguidos.
 
+Prueba de velocidad por GPU y número de procesos (`102e_speed_test.py`, octubre de 2026). Colab permite 2 sesiones a la vez por tipo de GPU.
+
+| GPU | Unidades por hora | 4 procesos | Más procesos | Unidades por 1,000 páginas |
+|---|---|---|---|---|
+| L4 | 1.54 | 0.61 págs/s | 6: 0.53, 8: 0.36, 12: falla | 0.70 |
+| A100 | 5.30 | 1.03 págs/s | 8: 1.00, 16: 0.52 | 1.43 |
+| T4 | 1.07 | 2 procesos: 0.017 págs/s | | no sirve |
+
+Con más de 4 procesos se llena la memoria de la GPU (cada proceso carga su modelo de layout) y la velocidad baja. Por eso se usan 4 procesos por máquina. La T4 no maneja bfloat16 ni flash-attention y queda descartada. La A100 es 1.7 veces más rápida que la L4, pero cada página cuesta el doble.
+
 Comparación con otras nubes, a la misma velocidad por GPU (precios de octubre de 2026, varían por región):
 
 | Opción | GPU | Precio por hora | Total estimado |

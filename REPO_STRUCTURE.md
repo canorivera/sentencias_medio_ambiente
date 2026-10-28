@@ -54,6 +54,7 @@ Perfiles (`ocr.PROFILES`):
 - `102b_extract_text.py`: extrae el texto del corpus y escribe `DATA_DIR/text/<perfil>/<año>/<expediente>/<archivo>.md` y `.json`. En la laptop usa llama.cpp (lo inicia solo). Omite lo ya hecho y anota cada documento en `DATA_DIR/logs/ocr_<perfil>.csv`.
 - `102c_colab.py`: corre el benchmark o la extracción en máquinas de Colab con GPU, manejadas desde la laptop con el CLI de Colab (como en el proyecto JANN). La máquina baja los PDF de PROFEPA y devuelve el texto en zips. Cada máquina corre `--procesos` copias de `102b` a la vez (por omisión 4: con una sola, el servidor queda ocioso entre tandas). Si una sesión se pierde, volver a correr `lote` toma solo lo pendiente. Correr desde PowerShell.
 - `102d_benchmark_run.py`: corre cada opción de OCR sobre las páginas de prueba.
+- `102e_speed_test.py`: mide páginas por segundo de una máquina de Colab con distintos números de procesos (15 minutos por corrida, mismos PDF en todas) y deja `DATA_DIR/benchmark/velocidad/<gpu>.csv`. Lo lanza `102c_colab.py velocidad`.
 - `202_benchmark_scores.py`: compara cada opción contra las referencias (errores de carácter, palabras y términos del libro de códigos encontrados) y escribe `DATA_DIR/benchmark/resultados_*.csv`.
 - `requirements_colab.txt`, `requirements_colab_vllm.txt`: entornos de la máquina de Colab (Paddle y vLLM van en entornos separados).
 
@@ -63,6 +64,7 @@ code/.venv/Scripts/python code/102_text_extraction/102c_colab.py benchmark --gpu
 code/.venv/Scripts/python code/102_text_extraction/202_benchmark_scores.py
 code/.venv/Scripts/python code/102_text_extraction/102c_colab.py lote --gpu L4 --workers colab1 colab2 --procesos 4 --perfil estandar
 code/.venv/Scripts/python code/102_text_extraction/102c_colab.py lote --gpu L4 --workers colab1 --procesos 4 --perfil alta --lista <DATA_DIR>/classification/candidatas_estandar.csv
+code/.venv/Scripts/python code/102_text_extraction/102c_colab.py velocidad --gpu L4 A100 --minutos 15         # prueba de velocidad
 code/.venv/Scripts/python code/102_text_extraction/102c_colab.py parar --nombre colab1                     # apagar una sesión
 ```
 
