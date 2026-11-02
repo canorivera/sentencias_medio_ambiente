@@ -63,7 +63,7 @@ code/.venv/Scripts/python code/102_text_extraction/102b_extract_text.py --perfil
 code/.venv/Scripts/python code/102_text_extraction/102c_colab.py benchmark --gpu L4 --configs paddle_144 paddle_200_ori paddle_300_ori olmocr_200 tesseract_300 --piloto 40
 code/.venv/Scripts/python code/102_text_extraction/202_benchmark_scores.py
 code/.venv/Scripts/python code/102_text_extraction/102c_colab.py lote --gpu L4 --workers colab1 colab2 --procesos 4 --perfil estandar
-code/.venv/Scripts/python code/102_text_extraction/102c_colab.py lote --gpu L4 --workers colab1 colab2 --procesos 3 --perfil alta --lista <DATA_DIR>/classification/candidatas_estandar.csv
+code/.venv/Scripts/python code/102_text_extraction/102c_colab.py lote --gpu L4 --workers colab1 colab2 --procesos 3 --perfil alta --lista <DATA_DIR>/classification/intermedios/candidatas_estandar.csv
 code/.venv/Scripts/python code/102_text_extraction/102c_colab.py velocidad --gpu L4 A100 --minutos 15         # prueba de velocidad
 code/.venv/Scripts/python code/102_text_extraction/102c_colab.py parar --nombre colab1                     # apagar una sesión
 ```
@@ -72,13 +72,16 @@ code/.venv/Scripts/python code/102_text_extraction/102c_colab.py parar --nombre 
 
 Marca las resoluciones de interés por términos de búsqueda y por el expediente, en dos niveles: el universo de vida silvestre y, dentro de él, los casos de fauna en cautiverio (zoológicos, acuarios, UMA, PIMVS y similares) que estudia la propuesta de investigación.
 
-- `codebook.csv`: libro de códigos. Una fila por término: patrón, peso, capa, errores de OCR tolerados, contexto requerido o excluido, fuente y justificación. Es la única fuente de verdad de los términos. Los términos de peso `ninguno` no suman al puntaje: solo se registran. La `capa` (`establecimiento` o `bienestar`) alimenta el indicador de cautiverio.
-- `CODEBOOK.md`: versión legible del libro de códigos (la genera `103_classify.py`, no se edita a mano).
+- `codebook.csv`: libro de códigos. Una fila por término: patrón, peso, capa, errores de OCR tolerados, contexto requerido o excluido, fuente y justificación. Es la única fuente de verdad de los términos. Los términos de peso `ninguno` no suman al puntaje: solo se registran. La `capa` (`establecimiento` o `bienestar`) alimenta los indicadores de cautiverio.
+- `diccionario.csv`: diccionario de datos de `clasificacion_final`. Una fila por columna: origen, descripción y valores posibles.
+- `CODEBOOK.md`: versión legible del diccionario de datos y del libro de códigos (la generan `103_classify.py` y `103b_combine.py`, no se edita a mano).
 - `keywords.py`: normalización del texto y búsqueda tolerante a errores de OCR.
 - `expediente.py`: lee las partes del número de expediente: oficina (y su entidad), subunidad, serie del cuadro de clasificación archivística de PROFEPA (2C.27.x hasta 2024, 3S.x desde 2024) y su materia, número de caso y año de apertura.
-- `103_classify.py`: lee `DATA_DIR/text/<perfil>/` y escribe en `DATA_DIR/classification/` la clasificación por resolución, cada aparición de cada término con su contexto, y la lista de candidatas para la segunda pasada de OCR.
+- `103_classify.py`: lee `DATA_DIR/text/<perfil>/` y escribe en `DATA_DIR/classification/intermedios/` la clasificación por resolución, cada aparición de cada término con su contexto, y la lista de candidatas para la segunda pasada de OCR.
+- `103b_combine.py`: une las dos clasificaciones en `DATA_DIR/classification/clasificacion_final.csv`: usa el texto de 300 ppp (`alta`) para las candidatas y el de 200 ppp (`estandar`) para las demás. Pone primero `pdf`, `expediente`, `anio`, `candidata`, `candidata_cautiverio` y `candidata_cautiverio_bienestar`, y agrega `enlace_dropbox`, `perfil_texto` y `candidata_estandar`. Escribe también `clasificacion_final.xlsx` (encabezado y columna `pdf` fijos, filtros, candidatas resaltadas, vínculo a cada PDF, y hojas con el diccionario de datos y los términos) y, en `intermedios/`, `apariciones_final.csv`, `candidatas_final.csv`, `candidatas_cautiverio_final.csv` y `candidatas_cautiverio_bienestar_final.csv`. Es la tabla que se usa en las etapas siguientes.
+- `103c_dropbox_links.py`: crea un vínculo de Dropbox (solo ver) para el PDF de cada resolución y lo guarda en `intermedios/enlaces_dropbox.csv`. Reutiliza los vínculos que ya existen. Requiere `DROPBOX_TOKEN` en `.env` (app con acceso a toda la cuenta y permisos `files.metadata.read`, `sharing.read` y `sharing.write`). Después se vuelve a correr `103b_combine.py`, que agrega la columna `enlace_dropbox` y usa ese vínculo en el Excel.
 
-Columnas principales de `clasificacion_<perfil>.csv`: partes del expediente, `anio` de resolución y `anios_hasta_resolucion`, tipo y sentido según el catálogo, `asunto` y `tipo_documento` (resolución, acuerdo de cierre), `puntaje`, `terminos`, `candidata`, `establecimientos`, `n_bienestar`, `candidata_cautiverio` y un conteo `n_<id>` por término.
+Columnas principales de `clasificacion_<perfil>.csv`: partes del expediente, `anio` de resolución y `anios_hasta_resolucion`, tipo y sentido según el catálogo, `asunto` y `tipo_documento` (resolución, acuerdo de cierre), `puntaje`, `terminos`, `candidata`, `establecimientos`, `n_bienestar`, `candidata_cautiverio`, `candidata_cautiverio_bienestar` y un conteo `n_<id>` por término.
 
 Reglas:
 
@@ -86,9 +89,14 @@ Reglas:
 |---|---|
 | `candidata` | serie de vida silvestre (2C.27.3 o 3S.3) o puntaje de 6 o más (suma de pesos de términos distintos) |
 | `candidata_cautiverio` | `candidata` y al menos un término de establecimiento. No exige términos de bienestar: el ejemplo de la propuesta (zoológico La Pastora, PFPA/25.3/2C.27.3/0021-19) no tiene ninguno |
+| `candidata_cautiverio_bienestar` | `candidata_cautiverio` y al menos 2 términos distintos de bienestar (condiciones de los ejemplares o maltrato). Con uno solo se colaban menciones de paso: "instalaciones" y "trato digno y respetuoso" son frases comunes en resoluciones sobre UMA y PIMVS |
 
 ```bash
 code/.venv/Scripts/python code/103_classification/103_classify.py --perfil estandar
+code/.venv/Scripts/python code/103_classification/103_classify.py --perfil alta      # después de la segunda pasada de OCR
+code/.venv/Scripts/python code/103_classification/103b_combine.py
+code/.venv/Scripts/python code/103_classification/103c_dropbox_links.py
+code/.venv/Scripts/python code/103_classification/103b_combine.py   # otra vez, para agregar los vínculos
 ```
 
 ## Datos (fuera del repositorio)
@@ -101,6 +109,7 @@ sentencias_profepa/
 ├── raw/             PDF descargados. No se modifican.
 ├── text/<perfil>/   Texto extraído (.md y .json por documento)
 ├── benchmark/       Páginas de prueba, transcripciones de referencia, salidas y resultados de cada opción de OCR
-├── classification/  Clasificación de resoluciones y apariciones de términos
+├── classification/  clasificacion_final.csv y .xlsx (tabla final de resoluciones)
+│   └── intermedios/ clasificación por perfil de texto, apariciones de términos y listas de candidatas
 └── logs/            Bitácoras de los scripts (descargas, OCR, sesiones de Colab)
 ```

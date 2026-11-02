@@ -20,7 +20,7 @@ Los documentos ya procesados se omiten. Cada resultado se agrega a DATA_DIR/logs
 Uso (desde la raíz del repositorio):
     code/.venv/Scripts/python code/102_text_extraction/102b_extract_text.py --perfil estandar
     code/.venv/Scripts/python code/102_text_extraction/102b_extract_text.py --perfil estandar --year 2023 --limit 5
-    code/.venv/Scripts/python code/102_text_extraction/102b_extract_text.py --perfil alta --lista <DATA_DIR>/classification/candidatas_estandar.csv
+    code/.venv/Scripts/python code/102_text_extraction/102b_extract_text.py --perfil alta --lista <DATA_DIR>/classification/intermedios/candidatas_estandar.csv
 En Colab (lo lanza 102c_colab.py): --pedazo <csv con pdf,url,bytes> --descargar --envio <carpeta>
 """
 

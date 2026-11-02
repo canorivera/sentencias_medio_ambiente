@@ -1,6 +1,51 @@
-# Libro de códigos de términos de búsqueda
+# Libro de códigos
 
-Archivo generado desde `codebook.csv` por `103_classify.py`. Para cambiar un término se edita el CSV.
+Archivo generado desde `codebook.csv` y `diccionario.csv` por `103_classify.py` y `103b_combine.py`. Para cambiar un término o la descripción de una columna se edita el CSV.
+
+1. [Diccionario de datos de `clasificacion_final`](#diccionario-de-datos-de-clasificacion_final)
+2. [Términos de búsqueda](#términos-de-búsqueda)
+
+## Diccionario de datos de `clasificacion_final`
+
+Una fila por resolución. Las primeras columnas son las de uso más frecuente.
+
+| columna | origen | descripción | valores |
+|---|---|---|---|
+| `pdf` | descarga | Ruta del PDF dentro de DATA_DIR/raw (año/expediente/archivo). | texto |
+| `enlace_dropbox` | descarga | Vínculo de Dropbox para ver el PDF (103c_dropbox_links.py). En el Excel también está en la columna pdf. | URL o vacío |
+| `expediente` | catálogo | Número de expediente tal como aparece en el catálogo de PROFEPA. | texto, por ejemplo PFPA/25.3/2C.27.3/0021-19 |
+| `anio` | descarga | Año de la resolución (carpeta de DATA_DIR/raw en que se guardó el PDF). | año o sin_fecha |
+| `candidata` | regla | Universo de vida silvestre: la serie del expediente es de vida silvestre (2C.27.3 o 3S.3) o el puntaje es de 6 o más. | 1 o 0 |
+| `candidata_cautiverio` | regla | Candidata que además menciona al menos un establecimiento con fauna en cautiverio (zoológico, acuario, UMA, PIMVS, delfinario, circo, cautiverio...). No exige términos de bienestar. | 1 o 0 |
+| `candidata_cautiverio_bienestar` | regla | Candidata de cautiverio que además menciona al menos 2 términos distintos de la capa bienestar (con uno solo se colaban menciones de paso): condiciones de los ejemplares o maltrato (alimentación, atención veterinaria, alojamiento, higiene, lesiones, muerte de ejemplares, crueldad, bienestar animal, Ley Federal de Sanidad Animal...). | 1 o 0 |
+| `oficina` | expediente | Clave numérica de la oficina que lleva el caso (primer número después de PFPA). | número |
+| `entidad` | expediente | Entidad u oficina central que corresponde a la clave de oficina. La relación se dedujo cruzando la clave con el área responsable del catálogo. | texto |
+| `subunidad` | expediente | Número después del punto en la clave de oficina. Sin fuente oficial: se registra sin interpretar. | número |
+| `esquema` | expediente | Versión del cuadro de clasificación archivística: 2C (hasta 2024) o 3S (desde 2024). | 2C o 3S |
+| `serie` | expediente | Serie archivística del expediente. | 2C.27.1 a 2C.27.6, 3S.1 a 3S.6 |
+| `materia_serie` | expediente | Materia de la serie. | industria, forestal, vida silvestre, zona federal marítimo terrestre, impacto ambiental, organismos genéticamente modificados, denuncias populares |
+| `numero_caso` | expediente | Número del caso dentro de la serie. | número |
+| `anio_apertura` | expediente | Año en que se abrió el expediente. | año |
+| `expediente_legible` | expediente | Qué tan completa fue la lectura del número de expediente. | completo, parcial o no |
+| `anios_hasta_resolucion` | cálculo | anio menos anio_apertura. | número de años |
+| `tipo_resolucion_catalogo` | catálogo | Tipo de resolución según el catálogo (sin unificar mayúsculas). | Definitiva, Sancionatoria, Cierre... |
+| `sentido_catalogo` | catálogo | Sentido de la resolución según el catálogo (sin unificar mayúsculas). | Sancionatoria, Sin sanción, Cierre... |
+| `organo_catalogo` | catálogo | Órgano que emite la resolución según el catálogo. | texto |
+| `asunto` | texto | Lo que dice el renglón "ASUNTO:" de la primera página. | texto o vacío |
+| `tipo_documento` | texto | Tipo de documento según el asunto o el inicio del texto. | resolución, acuerdo de cierre, otro acuerdo o no identificado |
+| `puntaje` | texto | Suma del peso de cada término distinto encontrado (fuerte 3, medio 2, débil 1, ninguno 0). | número |
+| `n_fuerte` | texto | Número de términos distintos de peso fuerte encontrados. | número |
+| `n_medio` | texto | Número de términos distintos de peso medio encontrados. | número |
+| `n_debil` | texto | Número de términos distintos de peso débil encontrados. | número |
+| `terminos` | texto | Identificadores de los términos encontrados (ver el libro de códigos). | lista separada por espacios, por ejemplo L01 A12 |
+| `solo_con_errores_ocr` | texto | Términos que solo se encontraron con letras equivocadas (sin ninguna aparición exacta). | lista separada por espacios |
+| `establecimientos` | texto | Términos de la capa establecimiento encontrados. | lista separada por espacios |
+| `n_bienestar` | texto | Número de términos distintos de la capa bienestar encontrados. | número |
+| `n_<id>` | texto | Número de apariciones de cada término del libro de códigos (una columna por término). | número |
+| `perfil_texto` | extracción | Texto del que sale la clasificación: alta (300 ppp, segunda pasada de OCR para las candidatas) o estandar (200 ppp). | alta o estandar |
+| `candidata_estandar` | extracción | Valor de candidata con el texto de 200 ppp. Permite ver las resoluciones que dejaron de ser candidatas con el texto de 300 ppp. | 1 o 0 |
+
+## Términos de búsqueda
 
 Los patrones se aplican sobre el texto normalizado (minúsculas, sin acentos, espacios colapsados).
 `contexto` y `excluir` se buscan a menos de 150 caracteres de cada aparición.
@@ -9,7 +54,7 @@ Pesos: fuerte = 3, medio = 2, debil = 1, ninguno = 0. El puntaje de una resoluci
 `capa`: `establecimiento` (lugares con fauna en cautiverio) y `bienestar` (condiciones de los ejemplares y maltrato) alimentan el indicador de cautiverio de `103_classify.py`.
 Entre paréntesis en `fuente`: número de resoluciones, de 1,594 con texto embebido, que contenían el término en la exploración inicial.
 
-## Marco legal
+### Marco legal
 
 | id | término | peso | capa | errores | patrón | contexto | excluir | fuente | justificación |
 |---|---|---|---|---|---|---|---|---|---|
@@ -25,7 +70,7 @@ Entre paréntesis en `fuente`: número de resoluciones, de 1,594 con texto embeb
 | L10 | Protección y cuidado de los animales (reforma constitucional 2024) | ninguno | bienestar | 2 | `proteccion y cuidado de los animales\|prohibe (?:el )?maltrato animal` |  |  | propuesta de investigación (R7) | Reforma a los artículos 3, 4 y 73 de la Constitución (DOF 2 de diciembre de 2024). |
 | L11 | Ley Federal de Responsabilidad Ambiental | ninguno |  | 2 | `ley federal de responsabilidad ambiental` |  |  | propuesta de investigación (R7) | Aparece en el ejemplo de la propuesta (daño ambiental). Solo se registra. |
 
-## Figuras manejo
+### Figuras manejo
 
 | id | término | peso | capa | errores | patrón | contexto | excluir | fuente | justificación |
 |---|---|---|---|---|---|---|---|---|---|
@@ -43,7 +88,7 @@ Entre paréntesis en `fuente`: número de resoluciones, de 1,594 con texto embeb
 | M12 | Plan de manejo | debil |  | 1 | `planes? de manejo` |  |  | agregado | También existe en materia forestal. |
 | M13 | Centro para la Conservación e Investigación de la Vida Silvestre | fuerte |  | 2 | `centros? para la conservacion e investigacion de (?:la )?vida silvestre` |  |  | agregado | Nombre completo de los CIVS. |
 
-## Establecimientos
+### Establecimientos
 
 | id | término | peso | capa | errores | patrón | contexto | excluir | fuente | justificación |
 |---|---|---|---|---|---|---|---|---|---|
@@ -56,7 +101,7 @@ Entre paréntesis en `fuente`: número de resoluciones, de 1,594 con texto embeb
 | E07 | Cautiverio o confinamiento | ninguno | establecimiento | 0 | `(?:en\|de) cautiverio\|confinamiento\|confinad[oa]s?\|manejo intensivo` | `ejemplar\|animal\|fauna\|especie\|individuo\|silvestre` |  | propuesta de investigación (R7) | Describe ejemplares mantenidos en cautiverio. 'Manejo intensivo' es la UMA con ejemplares confinados. No incluye 'fuera de su hábitat natural', que aparece en el párrafo general sobre legal procedencia. |
 | E08 | UMA en vida libre (manejo extensivo) | ninguno |  | 1 | `manejo (?:en )?vida libre\|manejo extensivo\|en vida libre` |  |  | propuesta de investigación (R7) | Las UMA de manejo extensivo trabajan con ejemplares en vida libre, no en cautiverio. Se registra para distinguirlas; no forma parte del indicador de cautiverio. |
 
-## Fauna
+### Fauna
 
 | id | término | peso | capa | errores | patrón | contexto | excluir | fuente | justificación |
 |---|---|---|---|---|---|---|---|---|---|
@@ -71,7 +116,7 @@ Entre paréntesis en `fuente`: número de resoluciones, de 1,594 con texto embeb
 | F09 | Mascota | debil |  | 0 | `mascotas?` |  |  | agregado (26) |  |
 | F10 | Especies emblemáticas | medio |  | 0 | `\b(?:totoaba\|vaquita marina\|tortugas? marinas?\|psitacid\w*\|guacamayas?\|pericos?\|loros?\|jaguar(?:es)?\|ocelotes?\|primates?\|monos? arana\|cocodril\w*\|caiman(?:es)?\|venados?\|borrego cimarron\|tiburon(?:es)?\|ajolotes?\|aguila real\|halcon(?:es)?)\b` |  |  | agregado | Especies frecuentes en tráfico y protección. Cuenta una vez aunque aparezcan varias. |
 
-## Acciones
+### Acciones
 
 | id | término | peso | capa | errores | patrón | contexto | excluir | fuente | justificación |
 |---|---|---|---|---|---|---|---|---|---|
@@ -88,7 +133,7 @@ Entre paréntesis en `fuente`: número de resoluciones, de 1,594 con texto embeb
 | A11 | Clausura | ninguno |  | 0 | `clausura (?:total\|parcial)? ?(?:temporal\|definitiva)?` |  |  | propuesta de investigación (R7) | Sanción o medida de seguridad. Solo se registra. |
 | A12 | Medidas correctivas o de seguridad | ninguno |  | 0 | `medidas? (?:correctivas?\|de seguridad\|de urgente aplicacion)` |  |  | propuesta de investigación (R7) | Aparece en casi todas las resoluciones. Solo se registra. |
 
-## Bienestar
+### Bienestar
 
 | id | término | peso | capa | errores | patrón | contexto | excluir | fuente | justificación |
 |---|---|---|---|---|---|---|---|---|---|
@@ -106,7 +151,7 @@ Entre paréntesis en `fuente`: número de resoluciones, de 1,594 con texto embeb
 | B12 | Muerte de ejemplares | ninguno | bienestar | 0 | `muerte\|muri[oe]\|fallec\w*\|necropsias?\|eutanasia\|sacrificio` | `ejemplar\|animal\|fauna\|especie` |  | propuesta de investigación (R7) | Muerte, necropsia o sacrificio de ejemplares. |
 | B13 | Abandono y sufrimiento | ninguno | bienestar | 0 | `abandono\|sufrimiento\|dolor innecesario\|descuido\|negligencia` | `ejemplar\|animal\|fauna\|especie\|individuo\|silvestre` |  | propuesta de investigación (R7) | Formas de maltrato por omisión. |
 
-## Procedimiento
+### Procedimiento
 
 | id | término | peso | capa | errores | patrón | contexto | excluir | fuente | justificación |
 |---|---|---|---|---|---|---|---|---|---|

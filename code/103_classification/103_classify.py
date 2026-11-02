@@ -1,12 +1,12 @@
 """Clasifica las resoluciones según los términos del libro de códigos y el expediente.
 
 Lee el texto de DATA_DIR/text/<perfil>/ (salida de 102b_extract_text.py) y escribe en
-DATA_DIR/classification/:
+DATA_DIR/classification/intermedios/:
     clasificacion_<perfil>.csv   una fila por resolución (columnas abajo)
     apariciones_<perfil>.csv     cada aparición de cada término con su contexto, para revisar
                                  por qué se marcó una resolución
     candidatas_<perfil>.csv      lista de PDF candidatos (entrada de la segunda pasada de OCR)
-Además regenera code/103_classification/CODEBOOK.md desde codebook.csv.
+Además regenera code/103_classification/CODEBOOK.md desde codebook.csv y diccionario.csv.
 
 Columnas de clasificacion_<perfil>.csv:
     expediente y sus partes (expediente.py): oficina, entidad, subunidad, esquema, serie,
@@ -18,7 +18,7 @@ Columnas de clasificacion_<perfil>.csv:
     puntaje, n_fuerte, n_medio, n_debil, terminos, solo_con_errores_ocr
     candidata (universo de vida silvestre)
     establecimientos (términos de la capa establecimiento), n_bienestar (términos distintos
-        de la capa bienestar) y candidata_cautiverio
+        de la capa bienestar), candidata_cautiverio y candidata_cautiverio_bienestar
     n_<id> por cada término del libro de códigos
 
 Reglas:
@@ -27,6 +27,11 @@ Reglas:
                             acuario, UMA, PIMVS, delfinario, circo, cautiverio...). No exige
                             términos de bienestar: el ejemplo de la propuesta (zoológico La
                             Pastora, PFPA/25.3/2C.27.3/0021-19) no tiene ninguno.
+    candidata_cautiverio_bienestar  candidata_cautiverio y al menos MIN_BIENESTAR términos
+                            distintos de bienestar (maltrato, alimentación, atención
+                            veterinaria, alojamiento...). Con uno solo se colaban
+                            menciones de paso: "instalaciones" y "trato digno y
+                            respetuoso" son frases comunes en resoluciones sobre UMA y PIMVS.
 UMBRAL = 6 (por ejemplo, dos términos fuertes, o uno fuerte y dos medios). Calibrado con las
 primeras 125 resoluciones extraídas: los expedientes de la serie de vida silvestre sacaron 9
 o más (salvo uno), y un solo término fuerte marcaba a un tercio de las demás series.
@@ -47,16 +52,18 @@ from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).parent))
 import expediente as exp  # noqa: E402
-from keywords import codebook_markdown, load_codebook, match_terms, normalize, score  # noqa: E402
+from keywords import codebook_markdown, load_codebook, load_dictionary, match_terms, normalize, score  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(REPO_ROOT / ".env")
 DATA_DIR = Path(os.environ["DATA_DIR"])
-OUT_DIR = DATA_DIR / "classification"
+# la tabla final (103b_combine.py) queda en classification/, lo demás en intermedios/
+OUT_DIR = DATA_DIR / "classification" / "intermedios"
 DOWNLOAD_LOG = DATA_DIR / "logs" / "download_log.csv"
 CATALOGUE_DIR = DATA_DIR / "catalogue"
 
 UMBRAL = 6
+MIN_BIENESTAR = 2
 CONTEXTO = 80
 WILDLIFE_SERIES = {"2C.27.3", "3S.3"}
 CAT_URL = "Hipervínculo a la resolución en versión pública"
@@ -130,7 +137,7 @@ def main():
     parser.add_argument("--procesos", type=int, default=max(1, (os.cpu_count() or 2) - 1))
     args = parser.parse_args()
 
-    (Path(__file__).parent / "CODEBOOK.md").write_text(codebook_markdown(TERMS), encoding="utf-8")
+    (Path(__file__).parent / "CODEBOOK.md").write_text(codebook_markdown(TERMS, load_dictionary()), encoding="utf-8")
 
     text_dir = DATA_DIR / "text" / args.perfil
     md_files = sorted(text_dir.rglob("*.md"))
@@ -169,6 +176,7 @@ def main():
             row["establecimientos"] = " ".join(sorted(set(found) & establishment))
             row["n_bienestar"] = len(set(found) & welfare)
             row["candidata_cautiverio"] = int(row["candidata"] and bool(row["establecimientos"]))
+            row["candidata_cautiverio_bienestar"] = int(row["candidata_cautiverio"] and row["n_bienestar"] >= MIN_BIENESTAR)
             row.update({f"n_{t.id}": len(found.get(t.id, [])) for t in TERMS})
             rows.append(row)
             all_hits += [{"pdf": pdf, **h} for h in hits]
@@ -190,6 +198,7 @@ def main():
     print(f"  por serie de vida silvestre: {sum(r['serie'] in WILDLIFE_SERIES for r in rows)}")
     print(f"  con puntaje >= {UMBRAL}: {sum(r['puntaje'] >= UMBRAL for r in rows)}")
     print(f"Candidatas de cautiverio: {sum(r['candidata_cautiverio'] for r in rows)}")
+    print(f"  con {MIN_BIENESTAR} o más términos de bienestar: {sum(r['candidata_cautiverio_bienestar'] for r in rows)}")
     print(f"Expedientes legibles: completo {sum(r['expediente_legible'] == 'completo' for r in rows)}, "
           f"parcial {sum(r['expediente_legible'] == 'parcial' for r in rows)}, "
           f"no {sum(r['expediente_legible'] == 'no' for r in rows)}")

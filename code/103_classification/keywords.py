@@ -20,6 +20,7 @@ from pathlib import Path
 import regex
 
 CODEBOOK = Path(__file__).with_name("codebook.csv")
+DICCIONARIO = Path(__file__).with_name("diccionario.csv")
 VENTANA = 150
 PESOS = {"fuerte": 3, "medio": 2, "debil": 1, "ninguno": 0}
 
@@ -70,6 +71,12 @@ def load_codebook(path=CODEBOOK):
         return [Term(**{**row, "errores": int(row["errores"] or 0)}) for row in csv.DictReader(f)]
 
 
+def load_dictionary(path=DICCIONARIO):
+    """Diccionario de datos de clasificacion_final.csv: una fila por columna."""
+    with open(path, encoding="utf-8") as f:
+        return list(csv.DictReader(f))
+
+
 TAG = re_std.compile(r"<[^>]+>")
 MARKDOWN = re_std.compile(r"[#*_`|>\[\]]+")
 
@@ -100,12 +107,28 @@ def score(found, terms):
     return sum(PESOS[by_id[i].peso] for i in found)
 
 
-def codebook_markdown(terms):
-    """Tabla legible del libro de códigos (CODEBOOK.md)."""
+def codebook_markdown(terms, columns):
+    """Versión legible del libro de códigos y del diccionario de datos (CODEBOOK.md)."""
     lines = [
-        "# Libro de códigos de términos de búsqueda",
+        "# Libro de códigos",
         "",
-        "Archivo generado desde `codebook.csv` por `103_classify.py`. Para cambiar un término se edita el CSV.",
+        "Archivo generado desde `codebook.csv` y `diccionario.csv` por `103_classify.py` y `103b_combine.py`. Para cambiar un término o la descripción de una columna se edita el CSV.",
+        "",
+        "1. [Diccionario de datos de `clasificacion_final`](#diccionario-de-datos-de-clasificacion_final)",
+        "2. [Términos de búsqueda](#términos-de-búsqueda)",
+        "",
+        "## Diccionario de datos de `clasificacion_final`",
+        "",
+        "Una fila por resolución. Las primeras columnas son las de uso más frecuente.",
+        "",
+        "| columna | origen | descripción | valores |",
+        "|---|---|---|---|",
+        *(
+            "| " + " | ".join(c.replace("|", "\\|") for c in (f"`{r['columna']}`", r["origen"], r["descripcion"], r["valores"])) + " |"
+            for r in columns
+        ),
+        "",
+        "## Términos de búsqueda",
         "",
         "Los patrones se aplican sobre el texto normalizado (minúsculas, sin acentos, espacios colapsados).",
         f"`contexto` y `excluir` se buscan a menos de {VENTANA} caracteres de cada aparición.",
@@ -119,7 +142,7 @@ def codebook_markdown(terms):
     for t in terms:
         groups.setdefault(t.grupo, []).append(t)
     for grupo, items in groups.items():
-        lines += [f"## {grupo.replace('_', ' ').capitalize()}", "",
+        lines += [f"### {grupo.replace('_', ' ').capitalize()}", "",
                   "| id | término | peso | capa | errores | patrón | contexto | excluir | fuente | justificación |",
                   "|---|---|---|---|---|---|---|---|---|---|"]
         for t in items:
