@@ -52,7 +52,7 @@ Perfiles (`ocr.PROFILES`):
 - `ocr.py`: funciones comunes (apertura y reparación de PDF, reglas del texto embebido, OCR por tandas, limpieza de bucles de repetición, perfiles). Conserva encabezados, pies y notas al margen en el Markdown. Tamaño de tanda en `OCR_CHUNK_PAGES` (por omisión 8 páginas).
 - `102a_benchmark_sample.py`: elige 30 páginas de prueba por estratos (digital, escaneo bueno y malo, girada, tabla, vida silvestre) y deja sus imágenes en `DATA_DIR/benchmark/paginas/`. Las transcripciones de referencia van en `DATA_DIR/benchmark/referencias/` (reglas en su `LEEME.md`).
 - `102b_extract_text.py`: extrae el texto del corpus y escribe `DATA_DIR/text/<perfil>/<año>/<expediente>/<archivo>.md` y `.json`. En la laptop usa llama.cpp (lo inicia solo). Omite lo ya hecho y anota cada documento en `DATA_DIR/logs/ocr_<perfil>.csv`.
-- `102c_colab.py`: corre el benchmark o la extracción en máquinas de Colab con GPU, manejadas desde la laptop con el CLI de Colab (como en el proyecto JANN). La máquina baja los PDF de PROFEPA y devuelve el texto en zips. Cada máquina corre `--procesos` copias de `102b` a la vez (por omisión 4: con una sola, el servidor queda ocioso entre tandas). Si una sesión se pierde, volver a correr `lote` toma solo lo pendiente. Correr desde PowerShell.
+- `102c_colab.py`: corre el benchmark o la extracción en máquinas de Colab con GPU, manejadas desde la laptop con el CLI de Colab (como en el proyecto JANN). La máquina baja los PDF de PROFEPA y devuelve el texto en zips. Cada máquina corre `--procesos` copias de `102b` a la vez (por omisión 4: con una sola, el servidor queda ocioso entre tandas). Con el perfil `alta` se usan 3: a 300 ppp cada proceso ocupa hasta ~3.8 GB de la GPU y con 4 la L4 se queda sin memoria. Si una sesión se pierde, volver a correr `lote` toma solo lo pendiente. Correr desde PowerShell.
 - `102d_benchmark_run.py`: corre cada opción de OCR sobre las páginas de prueba.
 - `102e_speed_test.py`: mide páginas por segundo de una máquina de Colab con distintos números de procesos (15 minutos por corrida, mismos PDF en todas) y deja `DATA_DIR/benchmark/velocidad/<gpu>.csv`. Lo lanza `102c_colab.py velocidad`.
 - `202_benchmark_scores.py`: compara cada opción contra las referencias (errores de carácter, palabras y términos del libro de códigos encontrados) y escribe `DATA_DIR/benchmark/resultados_*.csv`.
@@ -63,19 +63,29 @@ code/.venv/Scripts/python code/102_text_extraction/102b_extract_text.py --perfil
 code/.venv/Scripts/python code/102_text_extraction/102c_colab.py benchmark --gpu L4 --configs paddle_144 paddle_200_ori paddle_300_ori olmocr_200 tesseract_300 --piloto 40
 code/.venv/Scripts/python code/102_text_extraction/202_benchmark_scores.py
 code/.venv/Scripts/python code/102_text_extraction/102c_colab.py lote --gpu L4 --workers colab1 colab2 --procesos 4 --perfil estandar
-code/.venv/Scripts/python code/102_text_extraction/102c_colab.py lote --gpu L4 --workers colab1 --procesos 4 --perfil alta --lista <DATA_DIR>/classification/candidatas_estandar.csv
+code/.venv/Scripts/python code/102_text_extraction/102c_colab.py lote --gpu L4 --workers colab1 colab2 --procesos 3 --perfil alta --lista <DATA_DIR>/classification/candidatas_estandar.csv
 code/.venv/Scripts/python code/102_text_extraction/102c_colab.py velocidad --gpu L4 A100 --minutos 15         # prueba de velocidad
 code/.venv/Scripts/python code/102_text_extraction/102c_colab.py parar --nombre colab1                     # apagar una sesión
 ```
 
 ### `code/103_classification/`
 
-Marca las resoluciones de interés (vida silvestre) por términos de búsqueda y por la serie del expediente.
+Marca las resoluciones de interés por términos de búsqueda y por el expediente, en dos niveles: el universo de vida silvestre y, dentro de él, los casos de fauna en cautiverio (zoológicos, acuarios, UMA, PIMVS y similares) que estudia la propuesta de investigación.
 
-- `codebook.csv`: libro de códigos. Una fila por término: patrón, peso, errores de OCR tolerados, contexto requerido o excluido, fuente y justificación. Es la única fuente de verdad de los términos.
+- `codebook.csv`: libro de códigos. Una fila por término: patrón, peso, capa, errores de OCR tolerados, contexto requerido o excluido, fuente y justificación. Es la única fuente de verdad de los términos. Los términos de peso `ninguno` no suman al puntaje: solo se registran. La `capa` (`establecimiento` o `bienestar`) alimenta el indicador de cautiverio.
 - `CODEBOOK.md`: versión legible del libro de códigos (la genera `103_classify.py`, no se edita a mano).
 - `keywords.py`: normalización del texto y búsqueda tolerante a errores de OCR.
-- `103_classify.py`: lee `DATA_DIR/text/<perfil>/` y escribe en `DATA_DIR/classification/` la clasificación por resolución, cada aparición de cada término con su contexto, y la lista de candidatas para la segunda pasada de OCR. Reglas: serie 2C.27.3 o 3S.3 (vida silvestre en el cuadro de clasificación archivística de PROFEPA), o puntaje de 6 o más (suma de pesos de términos distintos).
+- `expediente.py`: lee las partes del número de expediente: oficina (y su entidad), subunidad, serie del cuadro de clasificación archivística de PROFEPA (2C.27.x hasta 2024, 3S.x desde 2024) y su materia, número de caso y año de apertura.
+- `103_classify.py`: lee `DATA_DIR/text/<perfil>/` y escribe en `DATA_DIR/classification/` la clasificación por resolución, cada aparición de cada término con su contexto, y la lista de candidatas para la segunda pasada de OCR.
+
+Columnas principales de `clasificacion_<perfil>.csv`: partes del expediente, `anio` de resolución y `anios_hasta_resolucion`, tipo y sentido según el catálogo, `asunto` y `tipo_documento` (resolución, acuerdo de cierre), `puntaje`, `terminos`, `candidata`, `establecimientos`, `n_bienestar`, `candidata_cautiverio` y un conteo `n_<id>` por término.
+
+Reglas:
+
+| Indicador | Regla |
+|---|---|
+| `candidata` | serie de vida silvestre (2C.27.3 o 3S.3) o puntaje de 6 o más (suma de pesos de términos distintos) |
+| `candidata_cautiverio` | `candidata` y al menos un término de establecimiento. No exige términos de bienestar: el ejemplo de la propuesta (zoológico La Pastora, PFPA/25.3/2C.27.3/0021-19) no tiene ninguno |
 
 ```bash
 code/.venv/Scripts/python code/103_classification/103_classify.py --perfil estandar

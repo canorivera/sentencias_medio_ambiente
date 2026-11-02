@@ -6,7 +6,7 @@ Análisis jurídico de las resoluciones y laudos emitidos por la Procuraduría F
 
 1. **Descarga.** Las resoluciones listadas en el catálogo de transparencia de PROFEPA: 6,029 PDF, unas 104,000 páginas.
 2. **Extracción de texto.** Por página, texto embebido confiable u OCR con PaddleOCR-VL-1.6. Corre en Colab (o en la laptop).
-3. **Clasificación.** Libro de códigos de términos de búsqueda y serie del expediente. Las candidatas pasan por una segunda pasada de OCR a mayor resolución.
+3. **Clasificación.** Libro de códigos de términos de búsqueda y partes del expediente (oficina, serie y materia, año de apertura). Marca el universo de vida silvestre y, dentro de él, los casos de fauna en cautiverio. Las candidatas pasan por una segunda pasada de OCR a mayor resolución.
 4. **Análisis con LLMs** de las resoluciones de interés (pendiente).
 
 ## Extracción de texto
@@ -83,7 +83,7 @@ Herramientas fuera del repositorio, con sus rutas en `.env`:
 code/.venv/Scripts/python code/101_downloading/101_download_rulings.py
 code/.venv/Scripts/python code/102_text_extraction/102c_colab.py lote --gpu L4 --workers colab1 colab2 --procesos 4 --perfil estandar
 code/.venv/Scripts/python code/103_classification/103_classify.py --perfil estandar
-code/.venv/Scripts/python code/102_text_extraction/102c_colab.py lote --gpu L4 --workers colab1 --procesos 4 --perfil alta --lista <DATA_DIR>/classification/candidatas_estandar.csv
+code/.venv/Scripts/python code/102_text_extraction/102c_colab.py lote --gpu L4 --workers colab1 colab2 --procesos 3 --perfil alta --lista <DATA_DIR>/classification/candidatas_estandar.csv
 ```
 
 El detalle de cada script está en [REPO_STRUCTURE.md](REPO_STRUCTURE.md).

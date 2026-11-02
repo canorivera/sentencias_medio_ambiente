@@ -21,7 +21,7 @@ import regex
 
 CODEBOOK = Path(__file__).with_name("codebook.csv")
 VENTANA = 150
-PESOS = {"fuerte": 3, "medio": 2, "debil": 1}
+PESOS = {"fuerte": 3, "medio": 2, "debil": 1, "ninguno": 0}
 
 
 @dataclass
@@ -36,12 +36,14 @@ class Term:
     excluir: str
     fuente: str
     justificacion: str
+    capa: str = ""
 
     def __post_init__(self):
-        exact = f"(?:{self.patron})"
-        self.exact = regex.compile(exact)
+        # \b al inicio: el término empieza una palabra ("estres" no cuenta dentro de "terrestres"),
+        # pero puede seguir con otras letras ("decomisado", "maltratados")
+        self.exact = regex.compile(rf"\b(?:{self.patron})")
         # fuzzy: primero se busca la forma exacta y solo si no aparece se aceptan errores
-        self.fuzzy = regex.compile(f"(?:{self.patron}){{e<={self.errores}}}") if self.errores else None
+        self.fuzzy = regex.compile(rf"\b(?:{self.patron}){{e<={self.errores}}}") if self.errores else None
         self.context_re = regex.compile(self.contexto) if self.contexto else None
         self.exclude_re = regex.compile(self.excluir) if self.excluir else None
 
@@ -108,7 +110,8 @@ def codebook_markdown(terms):
         "Los patrones se aplican sobre el texto normalizado (minúsculas, sin acentos, espacios colapsados).",
         f"`contexto` y `excluir` se buscan a menos de {VENTANA} caracteres de cada aparición.",
         "`errores` es el número de letras equivocadas que se toleran por errores de OCR.",
-        f"Pesos: {', '.join(f'{k} = {v}' for k, v in PESOS.items())}. El puntaje de una resolución es la suma del peso de cada término distinto encontrado.",
+        f"Pesos: {', '.join(f'{k} = {v}' for k, v in PESOS.items())}. El puntaje de una resolución es la suma del peso de cada término distinto encontrado. Los términos de peso ninguno no suman al puntaje: solo se registran.",
+        "`capa`: `establecimiento` (lugares con fauna en cautiverio) y `bienestar` (condiciones de los ejemplares y maltrato) alimentan el indicador de cautiverio de `103_classify.py`.",
         "Entre paréntesis en `fuente`: número de resoluciones, de 1,594 con texto embebido, que contenían el término en la exploración inicial.",
         "",
     ]
@@ -117,10 +120,10 @@ def codebook_markdown(terms):
         groups.setdefault(t.grupo, []).append(t)
     for grupo, items in groups.items():
         lines += [f"## {grupo.replace('_', ' ').capitalize()}", "",
-                  "| id | término | peso | errores | patrón | contexto | excluir | fuente | justificación |",
-                  "|---|---|---|---|---|---|---|---|---|"]
+                  "| id | término | peso | capa | errores | patrón | contexto | excluir | fuente | justificación |",
+                  "|---|---|---|---|---|---|---|---|---|---|"]
         for t in items:
-            cells = [t.id, t.termino, t.peso, str(t.errores), f"`{t.patron}`",
+            cells = [t.id, t.termino, t.peso, t.capa, str(t.errores), f"`{t.patron}`",
                      f"`{t.contexto}`" if t.contexto else "", f"`{t.excluir}`" if t.excluir else "",
                      t.fuente, t.justificacion]
             lines.append("| " + " | ".join(c.replace("|", "\\|") for c in cells) + " |")

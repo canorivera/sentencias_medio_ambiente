@@ -87,11 +87,16 @@ def start_llama_server():
     raise RuntimeError(f"llama-server no arrancó, revisar {log.name}")
 
 
+class ServerDown(Exception):
+    pass
+
+
 def output_paths(pdf_rel, profile_name):
     """pdf_rel es relativo a DATA_DIR (raw/<año>/<expediente>/<archivo>.pdf)."""
     rel = Path(pdf_rel).relative_to("raw")
+    # with_name y no with_suffix: hay archivos con puntos en el nombre (PFPA.25.3.2C.27.1.0010.19.pdf)
     base = DATA_DIR / "text" / profile_name / rel.parent / rel.stem
-    return base.with_suffix(".md"), base.with_suffix(".json")
+    return base.with_name(base.name + ".md"), base.with_name(base.name + ".json")
 
 
 def list_pdfs(args):
@@ -179,12 +184,18 @@ def main():
     try:
         for i, (pdf_rel, url, size) in enumerate(pending, 1):
             t0 = time.time()
-            pages, status = [], ""
+            pages, status, server_down = [], "", False
             try:
                 if args.descargar:
                     download(pdf_rel, url, size)
                 document, pages, meta, status = ocr.process_document(DATA_DIR / pdf_rel, engine, profile)
+                if any(p["fuente"] == "error_ocr" for p in pages) and not server_is_up():
+                    # páginas perdidas porque el servidor cayó: no se marca como terminado
+                    raise ServerDown("el servidor del modelo dejó de responder")
                 to_ship += write_outputs(pdf_rel, args.perfil, document, pages, meta)
+            except ServerDown as e:
+                status = f"error: {e}"
+                server_down = True
             except ocr.UnreadablePdf:
                 status = "pdf_ilegible"
             except Exception as e:
@@ -212,6 +223,10 @@ def main():
             if args.envio and (len(to_ship) >= 2 * SHIP_EVERY or i == len(pending)):
                 ship(to_ship, log_path, Path(args.envio), shipped)
                 to_ship, shipped = [], shipped + 1
+            if server_down:
+                if args.envio:
+                    ship(to_ship, log_path, Path(args.envio), shipped)
+                raise RuntimeError("el servidor del modelo dejó de responder; volver a correr para tomar lo pendiente")
     finally:
         if server is not None:
             server.terminate()

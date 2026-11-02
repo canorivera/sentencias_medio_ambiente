@@ -289,6 +289,9 @@ def trabajo(nombre, gpu, script, extras):
                 time.sleep(5)
                 recoger(nombre, log)
                 cli("download", "-s", nombre, f"{WORK_VM}/run.log", str(LOGS / f"{nombre}.run.log"))
+                # bitácoras del servidor y del primer proceso, para revisar fallas después
+                cli("download", "-s", nombre, f"{WORK_VM}/vllm.log", str(LOGS / f"{nombre}.vllm.log"))
+                cli("download", "-s", nombre, f"{WORK_VM}/{nombre}_0.log", str(LOGS / f"{nombre}.proceso0.log"))
                 estado = "hecho"
                 break
     except Exception as e:
@@ -317,6 +320,34 @@ def pendientes(perfil, lista=None):
             continue
         filas.append({"pdf": pdf, "url": descargas[pdf]["url"], "bytes": descargas[pdf]["bytes"]})
     return filas
+
+
+def hecho(pdf, perfil):
+    rel = Path(pdf).relative_to("raw")
+    return (DATA_DIR / "text" / perfil / rel.parent / f"{rel.stem}.md").exists()
+
+
+def trabajador(w, gpu, perfil, filas, procesos, intentos=8):
+    """Un trabajador de lote: relanza su sesión con lo que le falte si Colab la quita (las
+    sesiones duran como máximo 24 horas y a veces se pierden antes). Cada intento usa un
+    nombre de sesión nuevo (con fecha y hora), para que el cierre de una sesión vieja no apague
+    a la nueva y sus bitácoras no se pisen."""
+    log = LOGS / f"{w}.log"
+    antes = None
+    for intento in range(1, intentos + 1):
+        pendiente = [r for r in filas if not hecho(r["pdf"], perfil)]
+        if not pendiente or len(pendiente) == antes:
+            break
+        antes = len(pendiente)
+        nombre = f"{w}_{datetime.now():%m%d%H%M}_{intento}"
+        escribir(log, f"{w}: intento {intento}, {len(pendiente)} documentos pendientes")
+        script = vllm_cmd(gpu) + " ; " + extract_cmd(perfil, nombre, procesos)
+        estado = trabajo(nombre, gpu, script, subir_partes(nombre, pendiente, procesos))
+        escribir(log, f"{w}: intento {intento} terminó como {estado}")
+        # si el servidor cayó, la sesión termina antes de recorrer su lista: se relanza con lo que
+        # falte. Se para cuando un intento ya no avanza (lo que queda son PDF que fallan siempre)
+        time.sleep(60)
+    escribir(log, f"{w}: quedan {sum(not hecho(r['pdf'], perfil) for r in filas)} documentos sin texto")
 
 
 def escribir_pedazo(nombre, filas):
@@ -448,14 +479,12 @@ def main():
         print(f"{len(filas)} documentos pendientes para {len(a.workers)} trabajadores")
         hilos = []
         for k, (w, gpu) in enumerate(zip(a.workers, gpus)):
-            extras = subir_partes(w, filas[k::len(a.workers)], a.procesos)
-            script = vllm_cmd(gpu) + " ; " + extract_cmd(a.perfil, w, a.procesos)
-            h = threading.Thread(target=trabajo, args=(w, gpu, script, extras))
+            h = threading.Thread(target=trabajador, args=(w, gpu, a.perfil, filas[k::len(a.workers)], a.procesos))
             h.start()
             hilos.append(h)
         for h in hilos:
             h.join()
-        print("Sesiones terminadas. Si alguna se perdió, volver a correr lote: solo toma lo pendiente.")
+        print("Sesiones terminadas. Lo que haya quedado pendiente se toma al volver a correr lote.")
 
 
 if __name__ == "__main__":
